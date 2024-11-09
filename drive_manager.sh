@@ -10,12 +10,65 @@ RESET="\e[0m"
 STATUS="Starting script"
 INSTALL_STATUS=""
 CONFIG_STATUS=""
+TEST_RESULTS=""
 DRIVES=()
-INSTALLED_PACKAGES=()  # Tracks packages installed by the script
+SELECTED_DRIVES=()
+INSTALLED_PACKAGES=()
+ERROR_LOG=""
+PRE_STATE=""
+POST_STATE=""
 
-# Print status with color
-print_status() {
-    echo -e "${YELLOW}Status: $STATUS${RESET}"
+hdparm_status="Not attempted"
+hd_idle_status="Not attempted"
+sdparm_status="Not attempted"
+
+# Capture the initial system state for comparison
+capture_pre_state() {
+    echo -e "${GREEN}Capturing initial system state...${RESET}"
+    PRE_STATE=$(lsblk -o NAME,STATE | grep -E "sda|sdb")
+    dpkg -l | grep -E "hdparm|hd-idle|sdparm" > /tmp/pre_installed.txt
+}
+
+# Capture the final system state for comparison
+capture_post_state() {
+    echo -e "${GREEN}Capturing final system state...${RESET}"
+    POST_STATE=$(lsblk -o NAME,STATE | grep -E "sda|sdb")
+    dpkg -l | grep -E "hdparm|hd-idle|sdparm" > /tmp/post_installed.txt
+}
+
+# Run a test to verify if the configurations are correctly applied
+run_tests() {
+    echo -e "${GREEN}Running verification tests...${RESET}"
+    local test_passed=true
+
+    # Test if drives are in standby
+    for DRIVE in "${SELECTED_DRIVES[@]}"; do
+        if sudo hdparm -C "$DRIVE" | grep -q "standby"; then
+            TEST_RESULTS+="Drive $DRIVE is in standby as expected.\n"
+        else
+            TEST_RESULTS+="Drive $DRIVE is not in standby (unexpected).\n"
+            test_passed=false
+        fi
+    done
+
+    # Check for installed packages
+    if dpkg -s hdparm &>/dev/null; then
+        TEST_RESULTS+="hdparm is installed and functional.\n"
+    elif dpkg -s hd-idle &>/dev/null; then
+        TEST_RESULTS+="hd-idle is installed and functional.\n"
+    elif dpkg -s sdparm &>/dev/null; then
+        TEST_RESULTS+="sdparm is installed and functional.\n"
+    else
+        TEST_RESULTS+="No power management tool is correctly installed (unexpected).\n"
+        test_passed=false
+    fi
+
+    # Summarize test results
+    if $test_passed; then
+        TEST_RESULTS+="\nAll configurations verified successfully."
+    else
+        TEST_RESULTS+="\nSome configurations did not pass the verification checks."
+    fi
 }
 
 # Print summary
@@ -23,9 +76,28 @@ print_summary() {
     echo -e "\n${GREEN}Execution Summary:${RESET}"
     echo -e "${GREEN}==================${RESET}"
     echo -e "Initial Setup: Successful"
+    echo -e "Attempted Configurations:"
+    echo -e "  - hdparm: $hdparm_status"
+    echo -e "  - hd-idle: $hd_idle_status"
+    echo -e "  - sdparm: $sdparm_status"
     echo -e "Installed Packages: $INSTALL_STATUS"
     echo -e "Configuration Applied: $CONFIG_STATUS"
+    echo -e "\nVerification Results:"
+    echo -e "$TEST_RESULTS"
+    echo -e "\nSystem State Changes:"
+    echo -e "Pre-execution state:\n$PRE_STATE"
+    echo -e "Post-execution state:\n$POST_STATE"
+
+    if [[ -n "$ERROR_LOG" ]]; then
+        echo -e "${RED}Errors encountered:${RESET}"
+        echo -e "$ERROR_LOG"
+    fi
     echo -e "${GREEN}Thank you for using the drive_manager.sh script!${RESET}"
+}
+
+# Print status with color
+print_status() {
+    echo -e "${YELLOW}Status: $STATUS${RESET}"
 }
 
 # Detect all available hard drives
@@ -54,92 +126,71 @@ select_drives() {
     fi
 }
 
-# Define a rollback function that only removes packages installed by this script
-rollback() {
-    echo -e "${RED}Rolling back changes...${RESET}"
-    for package in "${INSTALLED_PACKAGES[@]}"; do
-        echo -e "${RED}Removing $package...${RESET}"
-        sudo apt-get remove -y "$package"
+# Install and configure hdparm
+configure_hdparm() {
+    STATUS="Configuring hdparm for ${SELECTED_DRIVES[*]}..."
+    print_status
+
+    if ! command -v hdparm &>/dev/null; then
+        sudo apt-get install -y hdparm && INSTALL_STATUS+="hdparm installed. "
+    fi
+    for DRIVE in "${SELECTED_DRIVES[@]}"; do
+        if sudo hdparm -y "$DRIVE"; then
+            CONFIG_STATUS+="hdparm configured for $DRIVE. "
+            hdparm_status="Configured successfully"
+        else
+            hdparm_status="Attempted but failed"
+            ERROR_LOG+="\nFailed to configure hdparm for $DRIVE."
+        fi
     done
-    sudo crontab -l | grep -v "sdparm --command=stop" | sudo crontab -
-    echo -e "${RED}Rollback completed.${RESET}"
-    exit 1
 }
 
-# Trap any exit (error or manual) to run the rollback function
-trap rollback EXIT
+# Install and configure hd-idle if hdparm fails
+configure_hd_idle() {
+    STATUS="Configuring hd-idle for ${SELECTED_DRIVES[*]}..."
+    print_status
 
-# Start installing required packages
-STATUS="Updating repository list..."
-print_status
-sudo apt-get update || rollback
+    sudo apt-get remove -y hdparm  # Remove hdparm if installed previously by the script
+    if ! dpkg -s hd-idle &>/dev/null; then
+        sudo apt-get install -y build-essential fakeroot debhelper
+        wget http://sourceforge.net/projects/hd-idle/files/hd-idle-1.05.tgz
+        tar -xvf hd-idle-1.05.tgz && cd hd-idle
+        dpkg-buildpackage -rfakeroot
+        sudo dpkg -i ../hd-idle_*.deb && INSTALL_STATUS+="hd-idle installed. "
+    fi
+    for DRIVE in "${SELECTED_DRIVES[@]}"; do
+        echo "HD_IDLE_OPTS=\"-i 0 -a ${DRIVE##*/} -i 600\"" | sudo tee /etc/default/hd-idle
+        sudo service hd-idle restart && CONFIG_STATUS+="hd-idle configured for $DRIVE. " || ERROR_LOG+="\nFailed to configure hd-idle for $DRIVE."
+        hd_idle_status="Configured successfully"
+    done
+}
 
-# Prompt user for drives selection
+# Install and configure sdparm if both hdparm and hd-idle fail
+configure_sdparm() {
+    STATUS="Configuring sdparm for ${SELECTED_DRIVES[*]}..."
+    print_status
+
+    sudo apt-get remove -y hd-idle  # Remove hd-idle if installed previously by the script
+    if ! dpkg -s sdparm &>/dev/null; then
+        sudo apt-get install -y sdparm && INSTALL_STATUS+="sdparm installed. "
+    fi
+    for DRIVE in "${SELECTED_DRIVES[@]}"; do
+        sudo sdparm --flexible --command=stop "$DRIVE" && CONFIG_STATUS+="sdparm configured for $DRIVE. " || ERROR_LOG+="\nFailed to configure sdparm for $DRIVE."
+        sdparm_status="Configured successfully"
+    done
+}
+
+# Begin main execution
+capture_pre_state
 detect_drives
 select_drives
 
-# Loop through selected drives
-for DRIVE in "${SELECTED_DRIVES[@]}"; do
-    echo -e "${GREEN}Configuring power management for $DRIVE...${RESET}"
+# Try each configuration option in sequence, stopping if one is successful
+configure_hdparm || configure_hd_idle || configure_sdparm
 
-    STATUS="Installing hdparm..."
-    print_status
-    if ! dpkg -s hdparm >/dev/null 2>&1; then
-        sudo apt-get install -y hdparm && INSTALL_STATUS="hdparm installed"
-        INSTALLED_PACKAGES+=("hdparm")  # Track installation
-    else
-        echo -e "${YELLOW}hdparm is already installed; skipping installation.${RESET}"
-    fi
+# Capture post state and run verification tests
+capture_post_state
+run_tests
 
-    # Configure hdparm for the selected drive
-    STATUS="Configuring hdparm for $DRIVE..."
-    print_status
-    sudo hdparm -y "$DRIVE" && CONFIG_STATUS="hdparm configured for $DRIVE"
-    sudo hdparm -I "$DRIVE" | grep 'Write cache' || rollback
-    sudo hdparm -B127 "$DRIVE"
-    echo "$DRIVE { write_cache = on; spindown_time = 120; }" | sudo tee -a /etc/hdparm.conf
-    sudo service hdparm restart
-
-    # Install and configure hd-idle if hdparm fails or as an alternative
-    STATUS="Removing hdparm and installing hd-idle..."
-    print_status
-    if [[ " ${INSTALLED_PACKAGES[@]} " =~ " hdparm " ]]; then
-        sudo apt-get remove -y hdparm
-        INSTALLED_PACKAGES=("${INSTALLED_PACKAGES[@]/hdparm}")
-    fi
-    if ! dpkg -s hd-idle >/dev/null 2>&1; then
-        sudo apt-get install -y build-essential fakeroot debhelper || rollback
-        wget http://sourceforge.net/projects/hd-idle/files/hd-idle-1.05.tgz
-        tar -xvf hd-idle-1.05.tgz && cd hd-idle
-        dpkg-buildpackage -rfakeroot || rollback
-        sudo dpkg -i ../hd-idle_*.deb && INSTALL_STATUS="hd-idle installed"
-        INSTALLED_PACKAGES+=("hd-idle")  # Track installation
-    else
-        echo -e "${YELLOW}hd-idle is already installed; skipping installation.${RESET}"
-    fi
-    echo "START_HD_IDLE=true" | sudo tee /etc/default/hd-idle
-    echo "HD_IDLE_OPTS=\"-i 0 -a ${DRIVE##*/} -i 600\"" | sudo tee -a /etc/default/hd-idle
-    sudo service hd-idle restart && CONFIG_STATUS="hd-idle configured for $DRIVE"
-
-    # Install and configure sdparm as a last resort
-    STATUS="Installing and configuring sdparm for $DRIVE..."
-    print_status
-    if [[ " ${INSTALLED_PACKAGES[@]} " =~ " hd-idle " ]]; then
-        sudo apt-get remove -y hd-idle
-        INSTALLED_PACKAGES=("${INSTALLED_PACKAGES[@]/hd-idle}")
-    fi
-    if ! dpkg -s sdparm >/dev/null 2>&1; then
-        sudo apt-get install -y sdparm || rollback
-        INSTALLED_PACKAGES+=("sdparm")  # Track installation
-    else
-        echo -e "${YELLOW}sdparm is already installed; skipping installation.${RESET}"
-    fi
-    sudo sdparm --flexible --command=stop "$DRIVE" || rollback
-    sudo crontab -l | { cat; echo "5 * * * * sdparm --command=stop $DRIVE"; } | sudo crontab -
-    INSTALL_STATUS="${INSTALL_STATUS}, sdparm installed"
-    CONFIG_STATUS="${CONFIG_STATUS}, sdparm configured for $DRIVE"
-done
-
-# If everything went well, release the trap and print summary
-trap - EXIT
+# Print final summary and exit
 print_summary
