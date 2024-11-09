@@ -9,36 +9,25 @@
 <body>
     <h1>Raspberry Pi Hard Drive Power Management Script</h1>
 
-    <p>A simple and effective shell script to manage hard drive power settings on Raspberry Pi and similar Linux-based systems. 
-    This script installs and configures tools like <code>hdparm</code>, <code>hd-idle</code>, and <code>sdparm</code> to spin down 
-    hard drives automatically when they're not in use, helping extend the life of your USB or SATA drives by reducing wear from 
-    continuous operation.</p>
+    <p>This shell script automates the process of managing hard drive power settings on Raspberry Pi and similar Linux-based systems. 
+    It installs and configures <code>hdparm</code>, <code>hd-idle</code>, and <code>sdparm</code> to enable automatic hard drive spin-down when inactive, 
+    helping extend the lifespan of USB or SATA drives.</p>
 
-    <h2>📜 Purpose</h2>
-    <p>Linux systems don’t always have built-in configurations to automatically manage hard drive spin-down settings. 
-    This script provides an automated way to install and configure the necessary tools to put your hard drive into standby mode 
-    when inactive, just like on Windows systems.</p>
+    <h2>Purpose</h2>
+    <p>On Linux systems, automatic hard drive spin-down configuration isn't always available by default. This script provides a solution to manage drive standby settings effectively, useful for setups like media servers, backup servers, and other low-power devices where minimizing power consumption is beneficial.</p>
 
-    <p>Whether you're running a media center, a backup server, or a lightweight home server on a Raspberry Pi, this script helps 
-    reduce power consumption and noise from idle hard drives, prolonging the drive's lifespan.</p>
-
-    <h2>🛠 Updated Features and Installation Steps</h2>
-    <p>The script uses three tools in sequence (<code>hdparm</code>, <code>hd-idle</code>, and <code>sdparm</code>) to configure each selected 
-    hard drive. Only packages not already installed on the system are installed, preventing interference with pre-existing software 
-    (like OpenMediaVault). A rollback feature removes only the packages installed by this script if it exits unexpectedly.</p>
-
-    <h3>New Features</h3>
+    <h2>Features and Installation Steps</h2>
+    <p>This script installs and configures one of the following tools sequentially based on compatibility:</p>
     <ul>
-        <li><strong>Automatic Installation with Safety Checks</strong>: Installs only necessary tools based on compatibility, ensuring no interference with pre-existing software.</li>
-        <li><strong>Interactive Drive Selection</strong>: Detects all attached drives and prompts the user to choose specific drives or apply settings to all detected drives.</li>
-        <li><strong>Automatic Spin-down</strong>: Configures idle spin-down time to 10 minutes by default, saving power and reducing drive wear.</li>
-        <li><strong>Rollback Capability</strong>: If the script exits prematurely, it rolls back any installed components while preserving pre-existing packages.</li>
-        <li><strong>Detailed Summary</strong>: Provides a detailed summary at the end, listing all configurations applied.</li>
+        <li><code>hdparm</code></li>
+        <li><code>hd-idle</code></li>
+        <li><code>sdparm</code></li>
     </ul>
+    <p>Each selected drive is configured with the appropriate power management tool to achieve the desired power-saving effect. Only required packages are installed, avoiding interference with pre-existing configurations. A final verification test checks if all configurations were successful, and the system state pre- and post-execution is summarized.</p>
 
-    <h2>⚙️ Usage</h2>
+    <h3>Installation and Usage</h3>
     <ol>
-        <li><strong>Download the Script</strong>: Download or clone the repository to your Raspberry Pi or compatible device.</li>
+        <li><strong>Download the Script</strong>: Download or clone the repository.</li>
         <li><strong>Make the Script Executable</strong>:
             <pre><code>chmod +x drive_manager.sh</code></pre>
         </li>
@@ -47,26 +36,26 @@
         </li>
     </ol>
 
-    <h3>Step-by-Step Walkthrough</h3>
+    <h3>Step-by-Step Configuration</h3>
     <ol>
-        <li><strong>Update Repositories</strong>: The script begins by updating the local repository list to ensure you have the latest package sources.</li>
-        <li><strong>Drive Detection and Selection</strong>: Detects all connected hard drives and prompts the user to select specific drives or choose to configure all drives.</li>
-        <li><strong>Install and Configure <code>hdparm</code> (if needed)</strong>: Installs <code>hdparm</code> and configures each selected drive to manage power settings.</li>
-        <li><strong>Install and Configure <code>hd-idle</code> (as an alternative)</strong>: Removes <code>hdparm</code> if installed by this script, installs <code>hd-idle</code>, and configures each selected drive to spin down every 10 minutes.</li>
-        <li><strong>Install and Configure <code>sdparm</code> (last resort)</strong>: Installs <code>sdparm</code> if necessary, setting up a cron job to spin down each selected drive hourly.</li>
-        <li><strong>Rollback Mechanism</strong>: If the script exits unexpectedly, it removes only the packages it installed, preserving any pre-existing configurations and software.</li>
+        <li><strong>Update Repositories</strong>: The script updates the repository list to fetch the latest package versions.</li>
+        <li><strong>Drive Detection and Selection</strong>: Lists all connected drives for user selection.</li>
+        <li><strong>Install and Configure <code>hdparm</code></strong>: Installs and configures <code>hdparm</code> for standby, cache settings, and spindown. If <code>hdparm</code> fails, it moves to <code>hd-idle</code>.</li>
+        <li><strong>Install and Configure <code>hd-idle</code></strong>: Removes <code>hdparm</code> if installed by the script and installs <code>hd-idle</code>, then configures each selected drive to spin down.</li>
+        <li><strong>Install and Configure <code>sdparm</code></strong>: If both <code>hdparm</code> and <code>hd-idle</code> are unsuccessful, <code>sdparm</code> is installed and configured for automatic drive spin-down.</li>
+        <li><strong>Verification and Summary</strong>: At the end, a test verifies if configurations are active and summarizes the initial and final states.</li>
     </ol>
 
-    <h2>🔄 Customization Options</h2>
+    <h2>Customization Options</h2>
     <ul>
-        <li><strong>Spin-down Time</strong>: Modify the spin-down time for each tool in the script to suit your needs.</li>
-        <li><strong>Custom Drives</strong>: The script assumes the primary hard drive is located at <code>/dev/sda</code>. If using a different drive, replace <code>/dev/sda</code> with the correct device identifier.</li>
+        <li><strong>Spin-down Time</strong>: Adjust spin-down times within the script functions if needed.</li>
+        <li><strong>Custom Drives</strong>: Modify the drive selection logic if you’re using non-standard device paths.</li>
     </ul>
 
-    <h2>📄 License</h2>
-    <p>This script is free to use, modify, and distribute for personal and commercial projects. Feel free to share and improve the code for the community!</p>
+    <h2>License</h2>
+    <p>This script is free for personal and commercial use, modification, and redistribution.</p>
 
-    <h2>❤️ Support the Project</h2>
-    <p>If you find this project useful and would like to support further development, consider donating via PayPal at <a href="mailto:gopalasubramanium@gmail.com">gopalasubramanium@gmail.com</a>. Thank you for your support!</p>
+    <h2>Support the Project</h2>
+    <p>If you found this project useful, consider donating via PayPal at <a href="mailto:gopalasubramanium@gmail.com">gopalasubramanium@gmail.com</a>. Thank you for your support!</p>
 </body>
 </html>
