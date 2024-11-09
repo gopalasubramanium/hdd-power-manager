@@ -1,33 +1,37 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raspberry Pi Hard Drive Power Management Script</title>
+    <title>Drive Power Management Script</title>
 </head>
 <body>
-    <h1>Raspberry Pi Hard Drive Power Management Script</h1>
+    <h1>🖥️ Drive Power Management Script</h1>
 
-    <p>This shell script automates the process of managing hard drive power settings on Raspberry Pi and similar Linux-based systems. 
-    It installs and configures <code>hdparm</code>, <code>hd-idle</code>, and <code>sdparm</code> to enable automatic hard drive spin-down when inactive, 
-    helping extend the lifespan of USB or SATA drives.</p>
+    <p>This script automates hard drive power management on Linux-based systems (e.g., Raspberry Pi) by configuring drives to spin down when inactive, thereby extending drive lifespan.</p>
 
-    <h2>Purpose</h2>
-    <p>On Linux systems, automatic hard drive spin-down configuration isn't always available by default. This script provides a solution to manage drive standby settings effectively, useful for setups like media servers, backup servers, and other low-power devices where minimizing power consumption is beneficial.</p>
-
-    <h2>Features and Installation Steps</h2>
-    <p>This script installs and configures one of the following tools sequentially based on compatibility:</p>
+    <h2>📋 Features</h2>
     <ul>
-        <li><code>hdparm</code></li>
-        <li><code>hd-idle</code></li>
-        <li><code>sdparm</code></li>
+        <li><strong>Drive Detection</strong>: Automatically detects connected drives and prompts the user for selection.</li>
+        <li><strong>Power Management Configuration</strong>:
+            <ul>
+                <li>Installs and configures <code>hdparm</code>, <code>hd-idle</code>, or <code>sdparm</code> for automatic spin-down.</li>
+            </ul>
+        </li>
+        <li><strong>System State Tracking</strong>: Captures the initial and final states of drives to verify configuration success.</li>
+        <li><strong>Rollback on Failure</strong>: Cleans up by uninstalling packages if configuration fails.</li>
+        <li><strong>Verification Tests</strong>: Ensures configurations are applied and provides a detailed summary.</li>
     </ul>
-    <p>Each selected drive is configured with the appropriate power management tool to achieve the desired power-saving effect. Only required packages are installed, avoiding interference with pre-existing configurations. A final verification test checks if all configurations were successful, and the system state pre- and post-execution is summarized.</p>
 
-    <h3>Installation and Usage</h3>
+    <h2>⚙️ Prerequisites</h2>
+    <ul>
+        <li><strong>Root Access</strong>: Run the script with root privileges.</li>
+        <li><strong>Internet Connection</strong>: Required to install missing packages.</li>
+    </ul>
+
+    <h2>🚀 Usage</h2>
     <ol>
-        <li><strong>Download the Script</strong>: Download or clone the repository.</li>
+        <li><strong>Download the Script</strong>: Save the script to your desired location.</li>
         <li><strong>Make the Script Executable</strong>:
             <pre><code>chmod +x drive_manager.sh</code></pre>
         </li>
@@ -36,26 +40,30 @@
         </li>
     </ol>
 
-    <h3>Step-by-Step Configuration</h3>
+    <h2>🛠️ Configuration Steps</h2>
     <ol>
-        <li><strong>Update Repositories</strong>: The script updates the repository list to fetch the latest package versions.</li>
-        <li><strong>Drive Detection and Selection</strong>: Lists all connected drives for user selection.</li>
-        <li><strong>Install and Configure <code>hdparm</code></strong>: Installs and configures <code>hdparm</code> for standby, cache settings, and spindown. If <code>hdparm</code> fails, it moves to <code>hd-idle</code>.</li>
-        <li><strong>Install and Configure <code>hd-idle</code></strong>: Removes <code>hdparm</code> if installed by the script and installs <code>hd-idle</code>, then configures each selected drive to spin down.</li>
-        <li><strong>Install and Configure <code>sdparm</code></strong>: If both <code>hdparm</code> and <code>hd-idle</code> are unsuccessful, <code>sdparm</code> is installed and configured for automatic drive spin-down.</li>
-        <li><strong>Verification and Summary</strong>: At the end, a test verifies if configurations are active and summarizes the initial and final states.</li>
+        <li><strong>Update Repositories</strong>: Ensures the latest package versions.</li>
+        <li><strong>Drive Detection and Selection</strong>: Detects drives and prompts the user for selection.</li>
+        <li><strong>Install and Configure <code>hdparm</code></strong>:
+            <ul>
+                <li>Installs and configures <code>hdparm</code> for standby, spindown, and cache settings. Fallback to <code>hd-idle</code> if incompatible.</li>
+            </ul>
+        </li>
+        <li><strong>Install and Configure <code>hd-idle</code></strong>: Removes <code>hdparm</code> if installed by the script, then configures <code>hd-idle</code>.</li>
+        <li><strong>Install and Configure <code>sdparm</code></strong>: Uses <code>sdparm</code> as a last resort for spin-down configuration.</li>
+        <li><strong>Verification and Summary</strong>: Verifies configurations and provides a summary with pre- and post-execution states.</li>
     </ol>
 
-    <h2>Customization Options</h2>
+    <h2>🔧 Customization</h2>
     <ul>
-        <li><strong>Spin-down Time</strong>: Adjust spin-down times within the script functions if needed.</li>
-        <li><strong>Custom Drives</strong>: Modify the drive selection logic if you’re using non-standard device paths.</li>
+        <li><strong>Spin-down Time</strong>: Customize spin-down times in the script functions.</li>
+        <li><strong>Drive Selection</strong>: Modify drive detection if using non-standard paths.</li>
     </ul>
 
-    <h2>License</h2>
+    <h2>📜 License</h2>
     <p>This script is free for personal and commercial use, modification, and redistribution.</p>
 
-    <h2>Support the Project</h2>
-    <p>If you found this project useful, consider donating via PayPal at <a href="mailto:gopalasubramanium@gmail.com">gopalasubramanium@gmail.com</a>. Thank you for your support!</p>
+    <h2>❤️ Support</h2>
+    <p>If you found this project helpful, consider donating via PayPal: <a href="mailto:gopalasubramanium@gmail.com">gopalasubramanium@gmail.com</a>. Thank you for your support!</p>
 </body>
 </html>
