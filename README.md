@@ -1,62 +1,55 @@
 
-# Raspberry Pi Hard Drive Power Management Script
+# 🖥️ Drive Power Management Script
 
-A simple and effective shell script to manage hard drive power settings on Raspberry Pi and similar Linux-based systems. This script installs and configures tools like `hdparm`, `hd-idle`, and `sdparm` to spin down hard drives automatically when they're not in use, helping extend the life of your USB or SATA drives by reducing wear from continuous operation.
+This script automates hard drive power management on Linux-based systems (e.g., Raspberry Pi) by configuring drives to spin down when inactive, thereby extending drive lifespan.
 
-## 📜 Purpose
+## 📋 Features
 
-Linux systems don’t always have built-in configurations to automatically manage hard drive spin-down settings. This script provides an automated way to install and configure the necessary tools to put your hard drive into standby mode when inactive, just like on Windows systems.
+- **Drive Detection**: Automatically detects connected drives and prompts the user for selection.
+- **Power Management Configuration**:
+  - Installs and configures `hdparm`, `hd-idle`, or `sdparm` for automatic spin-down.
+- **System State Tracking**: Captures the initial and final states of drives to verify configuration success.
+- **Rollback on Failure**: Cleans up by uninstalling packages if configuration fails.
+- **Verification Tests**: Ensures configurations are applied and provides a detailed summary.
 
-Whether you're running a media center, a backup server, or a lightweight home server on a Raspberry Pi, this script helps reduce power consumption and noise from idle hard drives, prolonging the drive's lifespan.
+## ⚙️ Prerequisites
 
-## 🛠 Updated Features and Installation Steps
+- **Root Access**: Run the script with root privileges.
+- **Internet Connection**: Required to install missing packages.
 
-The script uses three tools in sequence (`hdparm`, `hd-idle`, and `sdparm`) to configure each selected hard drive. Only packages not already installed on the system are installed, preventing interference with pre-existing software (like OpenMediaVault). A rollback feature removes only the packages installed by this script if it exits unexpectedly.
+## 🚀 Usage
 
-### New Features
-
-- **Automatic Installation with Safety Checks**: Installs only necessary tools based on compatibility, ensuring no interference with pre-existing software.
-- **Interactive Drive Selection**: Detects all attached drives and prompts the user to choose specific drives or apply settings to all detected drives.
-- **Automatic Spin-down**: Configures idle spin-down time to 10 minutes by default, saving power and reducing drive wear.
-- **Rollback Capability**: If the script exits prematurely, it rolls back any installed components while preserving pre-existing packages.
-- **Detailed Summary**: Provides a detailed summary at the end, listing all configurations applied.
-
-## ⚙️ Usage
-
-1. **Download the Script**: Download or clone the repository to your Raspberry Pi or compatible device.
-2. **Make the Script Executable**: 
+1. **Download the Script**: Save the script to your desired location.
+2. **Make the Script Executable**:
    ```bash
    chmod +x drive_manager.sh
    ```
-3. **Run the Script with Root Privileges**: 
+3. **Run the Script with Root Privileges**:
    ```bash
    sudo ./drive_manager.sh
    ```
 
-### Step-by-Step Walkthrough
+## 🛠️ Configuration Steps
 
-1. **Update Repositories**: The script begins by updating the local repository list to ensure you have the latest package sources.
-2. **Drive Detection and Selection**:
-   - Detects all connected hard drives and prompts the user to select specific drives or choose to configure all drives.
-3. **Install and Configure `hdparm` (if needed)**:
-   - Installs `hdparm` and configures each selected drive to manage hard drive power settings.
-   - If `hdparm` is not compatible, it proceeds to install `hd-idle`.
-4. **Install and Configure `hd-idle` (as an alternative)**:
-   - Removes `hdparm` if it was installed by this script, installs `hd-idle`, and configures each selected drive to spin down every 10 minutes.
-5. **Install and Configure `sdparm` (last resort)**:
-   - If both `hdparm` and `hd-idle` are incompatible, `sdparm` is installed and a cron job is set up to spin down each selected drive hourly.
-6. **Rollback Mechanism**:
-   - If the script exits unexpectedly, it removes only the packages it installed, preserving any pre-existing configurations and software.
+1. **Update Repositories**: Ensures the latest package versions.
+2. **Drive Detection and Selection**: Detects drives and prompts the user for selection.
+3. **Install and Configure `hdparm`**: 
+   - Installs and configures `hdparm` for standby, spindown, and cache settings. Fallback to `hd-idle` if incompatible.
+4. **Install and Configure `hd-idle`**: 
+   - Removes `hdparm` if installed by the script, then configures `hd-idle`.
+5. **Install and Configure `sdparm`**: 
+   - Uses `sdparm` as a last resort for spin-down configuration.
+6. **Verification and Summary**: Verifies configurations and provides a summary with pre- and post-execution states.
 
-## 🔄 Customization Options
+## 🔧 Customization
 
-- **Spin-down Time**: Modify the spin-down time for each tool in the script to suit your needs.
-- **Custom Drives**: The script assumes the primary hard drive is located at `/dev/sda`. If using a different drive, replace `/dev/sda` with the correct device identifier.
+- **Spin-down Time**: Customize spin-down times in the script functions.
+- **Drive Selection**: Modify drive detection if using non-standard paths.
 
-## 📄 License
+## 📜 License
 
-This script is free to use, modify, and distribute for personal and commercial projects. Feel free to share and improve the code for the community!
+This script is free for personal and commercial use, modification, and redistribution.
 
-## ❤️ Support the Project
+## ❤️ Support
 
-If you find this project useful and would like to support further development, consider donating via PayPal at [gopalasubramanium@gmail.com](mailto:gopalasubramanium@gmail.com). Thank you for your support!
+If you found this project helpful, consider donating via PayPal: [gopalasubramanium@gmail.com](mailto:gopalasubramanium@gmail.com). Thank you for your support!
