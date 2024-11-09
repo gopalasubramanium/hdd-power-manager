@@ -9,20 +9,17 @@ Linux systems don’t always have built-in configurations to automatically manag
 
 Whether you're running a media center, a backup server, or a lightweight home server on a Raspberry Pi, this script helps reduce power consumption and noise from idle hard drives, prolonging the drive's lifespan.
 
-## 🛠 Tools and Installation Steps
+## 🛠 Updated Features and Installation Steps
 
-The script uses three tools:
-- **hdparm**: A common utility for configuring hard drive parameters.
-- **hd-idle**: An alternative for drives not compatible with `hdparm`.
-- **sdparm**: A last-resort option for spinning down drives if other tools fail.
+The script uses three tools in sequence (`hdparm`, `hd-idle`, and `sdparm`) to configure each selected hard drive. Only packages not already installed on the system are installed, preventing interference with pre-existing software (like OpenMediaVault). A rollback feature removes only the packages installed by this script if it exits unexpectedly.
 
-The script runs in sequence, first attempting to use `hdparm`, then `hd-idle`, and finally `sdparm`. Each tool is only installed and configured if the previous one does not work for the given setup.
+### New Features
 
-### Features
-
-- **Automatic Installation**: The script installs only necessary tools based on compatibility, ensuring minimal setup.
+- **Automatic Installation with Safety Checks**: Installs only necessary tools based on compatibility, ensuring no interference with pre-existing software.
+- **Interactive Drive Selection**: Detects all attached drives and prompts the user to choose specific drives or apply settings to all detected drives.
 - **Automatic Spin-down**: Configures idle spin-down time to 10 minutes by default, saving power and reducing drive wear.
-- **Rollback Capability**: If the script exits prematurely, it automatically rolls back any installed components and configurations to restore the system to its pre-execution state.
+- **Rollback Capability**: If the script exits prematurely, it rolls back any installed components while preserving pre-existing packages.
+- **Detailed Summary**: Provides a detailed summary at the end, listing all configurations applied.
 
 ## ⚙️ Usage
 
@@ -39,17 +36,17 @@ The script runs in sequence, first attempting to use `hdparm`, then `hd-idle`, a
 ### Step-by-Step Walkthrough
 
 1. **Update Repositories**: The script begins by updating the local repository list to ensure you have the latest package sources.
-2. **Install `hdparm`**:
-   - Installs `hdparm` and attempts to configure it to manage hard drive power settings.
-   - If the drive supports `hdparm`, it configures a spin-down time and enables write caching.
-3. **Install `hd-idle`** (if `hdparm` fails):
-   - Removes `hdparm`, installs `hd-idle`, and configures it to spin down the drive every 10 minutes.
-4. **Install `sdparm`** (as a last resort):
-   - If both `hdparm` and `hd-idle` are incompatible, `sdparm` is installed, and a cron job is set up to spin down the drive hourly.
-
-### Rollback Mechanism
-
-If the script exits unexpectedly, it rolls back all installed packages and configurations, ensuring no unwanted settings or software remain.
+2. **Drive Detection and Selection**:
+   - Detects all connected hard drives and prompts the user to select specific drives or choose to configure all drives.
+3. **Install and Configure `hdparm` (if needed)**:
+   - Installs `hdparm` and configures each selected drive to manage hard drive power settings.
+   - If `hdparm` is not compatible, it proceeds to install `hd-idle`.
+4. **Install and Configure `hd-idle` (as an alternative)**:
+   - Removes `hdparm` if it was installed by this script, installs `hd-idle`, and configures each selected drive to spin down every 10 minutes.
+5. **Install and Configure `sdparm` (last resort)**:
+   - If both `hdparm` and `hd-idle` are incompatible, `sdparm` is installed and a cron job is set up to spin down each selected drive hourly.
+6. **Rollback Mechanism**:
+   - If the script exits unexpectedly, it removes only the packages it installed, preserving any pre-existing configurations and software.
 
 ## 🔄 Customization Options
 
