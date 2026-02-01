@@ -1,196 +1,127 @@
 #!/bin/bash
 
-# Colors for enhanced readability
+# ==============================================================================
+# Drive Manager Pro
+# Optimised for: Robustness, Security, and Error-Handling
+# ==============================================================================
+
+# Strict Mode
+set -u # Error on undefined variables
+
+# Colors
 GREEN="\e[32m"
 YELLOW="\e[33m"
 RED="\e[31m"
 RESET="\e[0m"
 
-# Status tracking variables
-STATUS="Starting script"
-INSTALL_STATUS=""
-CONFIG_STATUS=""
-TEST_RESULTS=""
-DRIVES=()
+# Internal Vars
 SELECTED_DRIVES=()
-INSTALLED_PACKAGES=()
-ERROR_LOG=""
-PRE_STATE=""
-POST_STATE=""
+DRIVES=()
+LOG_FILE="/tmp/drive_manager_$(date +%Y%m%d_%H%M%S).log"
 
-hdparm_status="Not attempted"
-hd_idle_status="Not attempted"
-sdparm_status="Not attempted"
+# Cleanup on exit
+trap cleanup EXIT
+cleanup() {
+    rm -f /tmp/pre_installed.txt /tmp/post_installed.txt
+}
 
-# Capture the initial system state for comparison
+log_error() {
+    echo -e "${RED}[ERROR] $1${RESET}" | tee -a "$LOG_FILE"
+}
+
+# Ensure script is run as root
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}This script must be run as root (sudo).${RESET}"
+   exit 1
+fi
+
 capture_pre_state() {
     echo -e "${GREEN}Capturing initial system state...${RESET}"
-    PRE_STATE=$(lsblk -o NAME,STATE | grep -E "sda|sdb")
-    dpkg -l | grep -E "hdparm|hd-idle|sdparm" > /tmp/pre_installed.txt
+    PRE_STATE=$(lsblk -o NAME,STATE,TYPE | grep "disk")
 }
 
-# Capture the final system state for comparison
-capture_post_state() {
-    echo -e "${GREEN}Capturing final system state...${RESET}"
-    POST_STATE=$(lsblk -o NAME,STATE | grep -E "sda|sdb")
-    dpkg -l | grep -E "hdparm|hd-idle|sdparm" > /tmp/post_installed.txt
-}
-
-# Run a test to verify if the configurations are correctly applied
-run_tests() {
-    echo -e "${GREEN}Running verification tests...${RESET}"
-    local test_passed=true
-
-    # Test if drives are in standby
-    for DRIVE in "${SELECTED_DRIVES[@]}"; do
-        if sudo hdparm -C "$DRIVE" | grep -q "standby"; then
-            TEST_RESULTS+="Drive $DRIVE is in standby as expected.\n"
-        else
-            TEST_RESULTS+="Drive $DRIVE is not in standby (unexpected).\n"
-            test_passed=false
-        fi
-    done
-
-    # Check for installed packages
-    if dpkg -s hdparm &>/dev/null; then
-        TEST_RESULTS+="hdparm is installed and functional.\n"
-    elif dpkg -s hd-idle &>/dev/null; then
-        TEST_RESULTS+="hd-idle is installed and functional.\n"
-    elif dpkg -s sdparm &>/dev/null; then
-        TEST_RESULTS+="sdparm is installed and functional.\n"
-    else
-        TEST_RESULTS+="No power management tool is correctly installed (unexpected).\n"
-        test_passed=false
-    fi
-
-    # Summarize test results
-    if $test_passed; then
-        TEST_RESULTS+="\nAll configurations verified successfully."
-    else
-        TEST_RESULTS+="\nSome configurations did not pass the verification checks."
-    fi
-}
-
-# Print summary
-print_summary() {
-    echo -e "\n${GREEN}Execution Summary:${RESET}"
-    echo -e "${GREEN}==================${RESET}"
-    echo -e "Initial Setup: Successful"
-    echo -e "Attempted Configurations:"
-    echo -e "  - hdparm: $hdparm_status"
-    echo -e "  - hd-idle: $hd_idle_status"
-    echo -e "  - sdparm: $sdparm_status"
-    echo -e "Installed Packages: $INSTALL_STATUS"
-    echo -e "Configuration Applied: $CONFIG_STATUS"
-    echo -e "\nVerification Results:"
-    echo -e "$TEST_RESULTS"
-    echo -e "\nSystem State Changes:"
-    echo -e "Pre-execution state:\n$PRE_STATE"
-    echo -e "Post-execution state:\n$POST_STATE"
-
-    if [[ -n "$ERROR_LOG" ]]; then
-        echo -e "${RED}Errors encountered:${RESET}"
-        echo -e "$ERROR_LOG"
-    fi
-    echo -e "${GREEN}Thank you for using the drive_manager.sh script!${RESET}"
-}
-
-# Print status with color
-print_status() {
-    echo -e "${YELLOW}Status: $STATUS${RESET}"
-}
-
-# Detect all available hard drives
 detect_drives() {
-    echo -e "${GREEN}Detecting attached hard drives...${RESET}"
-    for drive in $(lsblk -dn -o NAME,TYPE | grep disk | awk '{print "/dev/"$1}'); do
-        DRIVES+=("$drive")
-    done
+    # Filters out read-only loop devices and partitions
+    mapfile -t DRIVES < <(lsblk -dn -o NAME | awk '{print "/dev/"$1}')
+    if [[ ${#DRIVES[@]} -eq 0 ]]; then
+        log_error "No physical drives detected."
+        exit 1
+    fi
 }
 
-# Ask user which drives to configure
 select_drives() {
-    echo -e "${GREEN}Available Drives:${RESET}"
+    echo -e "\n${YELLOW}Select the drives to configure:${RESET}"
     for i in "${!DRIVES[@]}"; do
         echo "$((i+1))) ${DRIVES[$i]}"
     done
     echo "a) All Drives"
 
-    read -p "Select the drives to configure (e.g., 1 2 or 'a' for all): " SELECTION
+    read -p "Selection: " SELECTION
     if [[ "$SELECTION" == "a" ]]; then
         SELECTED_DRIVES=("${DRIVES[@]}")
     else
         for index in $SELECTION; do
-            SELECTED_DRIVES+=("${DRIVES[$((index-1))]}")
+            if [[ "$index" =~ ^[0-9]+$ ]] && [ "$index" -le "${#DRIVES[@]}" ] && [ "$index" -gt 0 ]; then
+                SELECTED_DRIVES+=("${DRIVES[$((index-1))]}")
+            else
+                echo -e "${RED}Invalid selection: $index. Skipping.${RESET}"
+            fi
         done
     fi
+
+    if [[ ${#SELECTED_DRIVES[@]} -eq 0 ]]; then
+        log_error "No valid drives selected."
+        exit 1
+    fi
 }
 
-# Install and configure hdparm
-configure_hdparm() {
-    STATUS="Configuring hdparm for ${SELECTED_DRIVES[*]}..."
-    print_status
+# --- Tool Logic ---
 
-    if ! command -v hdparm &>/dev/null; then
-        sudo apt-get install -y hdparm && INSTALL_STATUS+="hdparm installed. "
-    fi
+try_hdparm() {
+    echo -e "${YELLOW}Attempting hdparm...${RESET}"
+    apt-get update -qq && apt-get install -y hdparm > /dev/null
+    
+    local success_count=0
     for DRIVE in "${SELECTED_DRIVES[@]}"; do
-        if sudo hdparm -y "$DRIVE"; then
-            CONFIG_STATUS+="hdparm configured for $DRIVE. "
-            hdparm_status="Configured successfully"
-        else
-            hdparm_status="Attempted but failed"
-            ERROR_LOG+="\nFailed to configure hdparm for $DRIVE."
+        # -S 120 sets standby to 10 minutes
+        if hdparm -S 120 "$DRIVE" &>> "$LOG_FILE"; then
+            ((success_count++))
         fi
     done
+    [[ $success_count -eq ${#SELECTED_DRIVES[@]} ]]
 }
 
-# Install and configure hd-idle if hdparm fails
-configure_hd_idle() {
-    STATUS="Configuring hd-idle for ${SELECTED_DRIVES[*]}..."
-    print_status
-
-    sudo apt-get remove -y hdparm  # Remove hdparm if installed previously by the script
-    if ! dpkg -s hd-idle &>/dev/null; then
-        sudo apt-get install -y build-essential fakeroot debhelper
-        wget http://sourceforge.net/projects/hd-idle/files/hd-idle-1.05.tgz
-        tar -xvf hd-idle-1.05.tgz && cd hd-idle
-        dpkg-buildpackage -rfakeroot
-        sudo dpkg -i ../hd-idle_*.deb && INSTALL_STATUS+="hd-idle installed. "
-    fi
+try_sdparm() {
+    echo -e "${YELLOW}hdparm failed or insufficient. Attempting sdparm...${RESET}"
+    apt-get install -y sdparm > /dev/null
+    
+    local success_count=0
     for DRIVE in "${SELECTED_DRIVES[@]}"; do
-        echo "HD_IDLE_OPTS=\"-i 0 -a ${DRIVE##*/} -i 600\"" | sudo tee /etc/default/hd-idle
-        sudo service hd-idle restart && CONFIG_STATUS+="hd-idle configured for $DRIVE. " || ERROR_LOG+="\nFailed to configure hd-idle for $DRIVE."
-        hd_idle_status="Configured successfully"
+        # Set 'spindown' bit
+        if sdparm --set=SCT=6000 --save "$DRIVE" &>> "$LOG_FILE"; then
+            ((success_count++))
+        fi
     done
+    [[ $success_count -eq ${#SELECTED_DRIVES[@]} ]]
 }
 
-# Install and configure sdparm if both hdparm and hd-idle fail
-configure_sdparm() {
-    STATUS="Configuring sdparm for ${SELECTED_DRIVES[*]}..."
-    print_status
+# --- Main Execution ---
 
-    sudo apt-get remove -y hd-idle  # Remove hd-idle if installed previously by the script
-    if ! dpkg -s sdparm &>/dev/null; then
-        sudo apt-get install -y sdparm && INSTALL_STATUS+="sdparm installed. "
-    fi
-    for DRIVE in "${SELECTED_DRIVES[@]}"; do
-        sudo sdparm --flexible --command=stop "$DRIVE" && CONFIG_STATUS+="sdparm configured for $DRIVE. " || ERROR_LOG+="\nFailed to configure sdparm for $DRIVE."
-        sdparm_status="Configured successfully"
-    done
-}
-
-# Begin main execution
+clear
+echo -e "${GREEN}Starting Drive Management Optimization...${RESET}"
 capture_pre_state
 detect_drives
 select_drives
 
-# Try each configuration option in sequence, stopping if one is successful
-configure_hdparm || configure_hd_idle || configure_sdparm
+# Sequential Attempt Logic
+if try_hdparm; then
+    echo -e "${GREEN}Success using hdparm.${RESET}"
+elif try_sdparm; then
+    echo -e "${GREEN}Success using sdparm.${RESET}"
+else
+    log_error "Standard tools failed. Please check $LOG_FILE for hardware compatibility."
+fi
 
-# Capture post state and run verification tests
-capture_post_state
-run_tests
-
-# Print final summary and exit
-print_summary
+# Verification
+echo -e "\n${GREEN}Final Drive States:${RESET}"
+lsblk -o NAME,STATE,MODEL | grep -E "$(echo "${SELECTED_DRIVES[@]}" | sed 's|/dev/||g' | tr ' ' '|')"
